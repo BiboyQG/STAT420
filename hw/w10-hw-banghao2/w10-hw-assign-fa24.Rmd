@@ -3,10 +3,10 @@ title: "Week 10 - Homework"
 author: "STAT 420, Fall 2024, Banghao Chi"
 date: '11/03/2024'
 output:
-  pdf_document: default
   html_document: 
     theme: readable
     toc: yes
+  pdf_document: default
 urlcolor: cyan
 ---
 
@@ -141,18 +141,54 @@ Look at the Normal Q-Q plot, I think the normality assumption for this model is 
 **(d)** Check for any high leverage observations. Report any observations you determine to have high leverage.
 
 ```{r}
-n = nrow(prostate)
-p = length(coef(model))
 leverage = hatvalues(model)
-high_leverage_cutoff = 2 * (p/n)
+high_leverage_cutoff = 2 * mean(leverage)
 high_leverage = which(leverage > high_leverage_cutoff)
 ```
 
+The above is the reported observations' index that have high leverage.
+
 **(e)** Check for any influential observations. Report any observations you determine to be influential.
+
+```{r}
+cd = cooks.distance(model)
+n = length(cd)
+influential_cutoff = 4/n
+influential_points = which(cd > influential_cutoff)
+```
+
+The above is the reported observations' index that are influential.
 
 **(f)** Refit the additive multiple regression model without any points you identified as influential. Compare the coefficients of this fitted model to the previously fitted model.
 
+```{r}
+model_cleaned = lm(lpsa ~ ., data = prostate[-influential_points,])
+
+coef_comparison = data.frame(
+    Original = coef(model),
+    Without_Influential = coef(model_cleaned),
+    Difference = coef(model_cleaned) - coef(model)
+)
+round(coef_comparison, 4)
+```
+
 **(g)** Create a data frame that stores the observations that were "removed" because they were influential. Use the two models you have fit to make predictions with these observations. Comment on the difference between these two sets of predictions.
+
+```{r}
+removed_data = prostate[influential_points,]
+pred_original = predict(model, newdata = removed_data)
+pred_cleaned = predict(model_cleaned, newdata = removed_data)
+
+prediction_comparison = data.frame(
+    Observation = influential_points,
+    Original_Pred = pred_original,
+    Clean_Model_Pred = pred_cleaned,
+    Difference = pred_cleaned - pred_original
+)
+round(prediction_comparison, 4)
+```
+
+When we remove influential points and refit the model, our predictions for those influential points change noticeably. This change in predictions demonstrates how these points were indeed influential - removing them affected the model's parameters enough to create different predictions.
 
 ***
 
@@ -206,7 +242,7 @@ bptest(fit_2)
 num_sims = 2500
 p_val_1 = rep(0, num_sims)
 p_val_2 = rep(0, num_sims)
-birthday = 19081014
+birthday = 20021023
 set.seed(birthday)
 ```
 
@@ -218,7 +254,43 @@ Repeat the above process of generating `y_1` and `y_2` as defined above, and fit
 
 using both models, in the appropriate variables defined above. (You do not need to use a data frame as we have in the past. Although, feel free to modify the code to instead use a data frame.)
 
+```{r}
+for(i in 1:num_sims) {
+  x_1 = runif(n, 0, 5)
+  x_2 = runif(n, -2, 2)
+  
+  y_1 = 4 + 1 * x_1 + 0 * x_2 + rnorm(n = n, mean = 0, sd = 1)
+  y_2 = 4 + 1 * x_1 + 0 * x_2 + rnorm(n = n, mean = 0, sd = abs(x_2))
+  
+  fit_1 = lm(y_1 ~ x_1 + x_2)
+  fit_2 = lm(y_2 ~ x_1 + x_2)
+  
+  p_val_1[i] = summary(fit_1)$coefficients[3,4]
+  p_val_2[i] = summary(fit_2)$coefficients[3,4]
+}
+```
+
 **(b)** What proportion of the `p_val_1` values is less than 0.01? Less than 0.05? Less than 0.10? What proportion of the `p_val_2` values is less than 0.01? Less than 0.05? Less than 0.10? Arrange your results in a table. Briefly explain these results.
+
+```{r}
+prop_01_1 = mean(p_val_1 < 0.01)
+prop_01_2 = mean(p_val_2 < 0.01)
+
+prop_05_1 = mean(p_val_1 < 0.05)
+prop_05_2 = mean(p_val_2 < 0.05)
+
+prop_10_1 = mean(p_val_1 < 0.10)
+prop_10_2 = mean(p_val_2 < 0.10)
+
+results = data.frame(
+  Alpha = c(0.01, 0.05, 0.10),
+  Model1 = c(prop_01_1, prop_05_1, prop_10_1),
+  Model2 = c(prop_01_2, prop_05_2, prop_10_2)
+)
+results
+```
+
+The proportion that we see in the above table is rates of the probability of rejecting $H_0: \beta_2 = 0$ when it is actually true. For model 1, the rates should be close to the alpha level (which is exactly the case as we see in above table), since it's variance of the noise is indeed a constant; for model 2, since the noise is not a constant, the rates should slightly deviate from the value of alpha due to the violation of the homoscedasticity assumption.
 
 ***
 
@@ -232,7 +304,72 @@ library(faraway)
 
 **(a)** Fit a simple linear regression with `loss` as the response and `Fe` as the predictor. Plot a scatterplot and add the fitted line. Check the assumptions of this model.
 
+```{r}
+model1 = lm(loss ~ Fe, data=corrosion)
+
+plot(loss ~ Fe, data=corrosion, 
+     main="Loss vs Iron Content",
+     xlab="Iron Content (Fe)", 
+     ylab="Loss")
+abline(model1, col="darkorange", lwd = 2, lty = 2)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(model1, which=1)
+plot(model1, which=2)
+
+bptest(model1)
+shapiro.test(resid(model1))
+```
+
+We check the assumption using statistical method and also **art** (visual) method.
+
+- **Statistically**:
+  - For BP test, since the p-value of the test is $0.9$, which is greater than most of the alpha value, we fail to reject the null hypothesis. This suggests that the assumption of constant variance is satisfied.
+  - For SP test, since the p-value of the test is $0.4$, which is greater than most of the alpha value, we fail to reject the null hypothesis. This suggests that the assumption of residuals are normally distributed.
+
+- **Visually**:
+  - For Fitted vs Residuals plot, we see that the distribution of the residuals vary according to the value of the fitted values, which suggests that the equal variance assumption is violated.
+  - For the Nornal Q-Q plot, we can see a slight fat tail on the right of the plot, which I suspect the assumption of normality.
+  
 **(b)** Fit higher order polynomial models of degree 2, 3, and 4. For each, plot a fitted versus residuals plot and comment on the constant variance assumption. Based on those plots, which of these three models do you think are acceptable? Use a statistical test(s) to compare the models you just chose. Based on the test, which is preferred? Check the normality assumption of this model. Identify any influential observations of this model.
+
+```{r}
+model2 = lm(loss ~ Fe + I(Fe^2), data=corrosion)
+model3 = lm(loss ~ Fe + I(Fe^2) + I(Fe^3), data=corrosion)
+model4 = lm(loss ~ Fe + I(Fe^2) + I(Fe^3) + I(Fe^4), data=corrosion)
+
+par(mfrow=c(1,3))
+
+plot(fitted(model2), resid(model2),
+     main="Quadratic Model",
+     xlab="Fitted values",
+     ylab="Residuals")
+abline(h=0, col="darkorange", lty=2)
+
+plot(fitted(model3), resid(model3),
+     main="Cubic Model",
+     xlab="Fitted values",
+     ylab="Residuals")
+abline(h=0, col="darkorange", lty=2)
+
+plot(fitted(model4), resid(model4),
+     main="Quartic Model",
+     xlab="Fitted values",
+     ylab="Residuals")
+abline(h=0, col="darkorange", lty=2)
+
+bptest(model2)
+bptest(model3)
+bptest(model4)
+
+shapiro.test(resid(model2))
+```
+
+- Based on the plots, the Cubic model seems to be the best in my opinion, as the distribution of the residuals seem to be scattered equally no matter the value of fitter value is.
+- Based on BP test, the Quadratic model is the best, since it's p-value of the BP test is the largest, suggesting biggest probability of constant variance of the noise.
+- The p-value of the SP test for this model(Quadratic Model) is 0.3, which is greater than most of the common alpha values. Therefore, the normality assumption for this model is satisfied.
 
 ***
 
@@ -246,17 +383,74 @@ library(ggplot2)
 
 **(a)** Fit a linear model with `price` as the response variable $y$, and `carat` as the predictor $x$. Return the summary information of this model.
 
+```{r}
+model_linear = lm(price ~ carat, data = diamonds)
+summary(model_linear)
+```
+
 **(b)** Plot a scatterplot of price versus carat and add the line for the fitted model in part **(a)**. Using a fitted versus residuals plot and/or a Q-Q plot, comment on the diagnostics. 
 
+```{r}
+par(mfrow=c(1,2))
+plot(model_linear, which=1)
+plot(model_linear, which=2)
+```
+
+- For equal variance assumption: The distribution of the residuals seem to have a relationship with fitted value, therefore the variance of the distribution of the noise may not be equal.
+- For normality assumption: Flat tails are observed within the Normal Q-Q plot, suggesting that the noise may not follow a normal distribution.
 
 **(c)** Seeing as the price stretches over several orders of magnitude, it seems reasonable to try a log transformation of the response. Fit a model with a logged response, plot a scatterplot of log-price versus carat and add the line for the fitted model, then use a fitted versus residuals plot and/or a Q-Q plot to comment on the diagnostics of the model.
 
 ```{r}
 qplot(price, data = diamonds, bins = 30)
+model_log_y = lm(log(price) ~ carat, data = diamonds)
+
+plot(diamonds$carat, log(diamonds$price),
+     pch = 20,
+     xlab = "Carat",
+     ylab = "Log(Price)",
+     main = "Log(Price) vs Carat with Linear Fit")
+
+abline(model_log_y, col = "darkorange", lwd = 2, lty = 2)
+
+
+par(mfrow=c(1,2))
+plot(model_log_y, which=1)
+plot(model_log_y, which=2)
 ```
 
+- For equal variance assumption: The distribution of the residuals seem to have a relationship with fitted value, therefore the variance of the distribution of the noise may not be equal.
+- For normality assumption: Flat tail is observed within the Normal Q-Q plot, suggesting that the noise may not follow a normal distribution.
 
 **(d)** Try adding log transformation of the predictor. Fit a model with a logged response and logged predictor, plot a scatterplot of log-price versus log-carat and add the line for the fitted model, then use a fitted versus residuals plot and/or a Q-Q plot to comment on the diagnostics of the model.
 
+```{r}
+model_log_both = lm(log(price) ~ log(carat), data = diamonds)
+
+plot(log(diamonds$carat), log(diamonds$price),
+     pch = 20,
+     xlab = "Log(Carat)",
+     ylab = "Log(Price)",
+     main = "Log(Price) vs Log(Carat) with Linear Fit")
+
+abline(model_log_both, col = "darkorange", lwd = 2, lty = 2)
+
+par(mfrow=c(1,2))
+plot(model_log_both, which=1)
+plot(model_log_both, which=2)
+```
+
+- For equal variance assumption: The distribution of the residuals seem to have a relationship with fitted value, therefore the variance of the distribution of the noise may not be equal.
+- For normality assumption: Flat tail is observed within the Normal Q-Q plot, suggesting that the noise may not follow a normal distribution.
+
 **(e)** Use the model from part **(d)** to predict the price (in dollars) of a 3-carat diamond. Construct a 99% prediction interval for the price (in dollars).
+
+```{r}
+new_data = data.frame(carat = 3)
+log_pred = predict(model_log_both, 
+                   newdata = data.frame(carat = log(3)), 
+                   interval = "prediction", 
+                   level = 0.99)
+exp(log_pred)
+```
 
