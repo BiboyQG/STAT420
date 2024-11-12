@@ -3,10 +3,10 @@ title: "Week 10 - Homework"
 author: "STAT 420, Fall 2024, Banghao Chi"
 date: '11/03/2024'
 output:
+  pdf_document: default
   html_document: 
     theme: readable
     toc: yes
-  pdf_document: default
 urlcolor: cyan
 ---
 
@@ -136,7 +136,7 @@ Look at the Fitted vs Residuals plot, I don't think the constant variance assump
 plot(model, which = 2)
 ```
 
-Look at the Normal Q-Q plot, I think the normality assumption for this model is violated, there seems to be fat tails within the plot.
+Look at the Normal Q-Q plot, I think the normality assumption for this model is violated, there seems to be fat tails within the plot. But if we check the p-value of the SW test, we can see a large value, where we won't reject the null hypothesis, meaning that the normality assumption is not violated.
 
 **(d)** Check for any high leverage observations. Report any observations you determine to have high leverage.
 
@@ -144,9 +144,10 @@ Look at the Normal Q-Q plot, I think the normality assumption for this model is 
 leverage = hatvalues(model)
 high_leverage_cutoff = 2 * mean(leverage)
 high_leverage = which(leverage > high_leverage_cutoff)
+prostate[high_leverage, ]
 ```
 
-The above is the reported observations' index that have high leverage.
+The above is the reported observations that have high leverage.
 
 **(e)** Check for any influential observations. Report any observations you determine to be influential.
 
@@ -155,9 +156,10 @@ cd = cooks.distance(model)
 n = length(cd)
 influential_cutoff = 4/n
 influential_points = which(cd > influential_cutoff)
+prostate[influential_points, ]
 ```
 
-The above is the reported observations' index that are influential.
+The above is the reported observations that are influential.
 
 **(f)** Refit the additive multiple regression model without any points you identified as influential. Compare the coefficients of this fitted model to the previously fitted model.
 
@@ -327,7 +329,7 @@ We check the assumption using statistical method and also **art** (visual) metho
 
 - **Statistically**:
   - For BP test, since the p-value of the test is $0.9$, which is greater than most of the alpha value, we fail to reject the null hypothesis. This suggests that the assumption of constant variance is satisfied.
-  - For SP test, since the p-value of the test is $0.4$, which is greater than most of the alpha value, we fail to reject the null hypothesis. This suggests that the assumption of residuals are normally distributed.
+  - For SW test, since the p-value of the test is $0.4$, which is greater than most of the alpha value, we fail to reject the null hypothesis. This suggests that the assumption of residuals are normally distributed.
 
 - **Visually**:
   - For Fitted vs Residuals plot, we see that the distribution of the residuals vary according to the value of the fitted values, which suggests that the equal variance assumption is violated.
@@ -360,16 +362,27 @@ plot(fitted(model4), resid(model4),
      ylab="Residuals")
 abline(h=0, col="darkorange", lty=2)
 
-bptest(model2)
-bptest(model3)
-bptest(model4)
+anova(model2, model3, model4)
 
-shapiro.test(resid(model2))
+shapiro.test(resid(model3))
+
+cd = cooks.distance(model3)
+cd_high_cutoff = 4 / length(cd)
+index = which(cd > cd_high_cutoff)
+corrosion[index, ]
 ```
 
 - Based on the plots, the Cubic model seems to be the best in my opinion, as the distribution of the residuals seem to be scattered equally no matter the value of fitter value is.
-- Based on BP test, the Quadratic model is the best, since it's p-value of the BP test is the largest, suggesting biggest probability of constant variance of the noise.
-- The p-value of the SP test for this model(Quadratic Model) is 0.3, which is greater than most of the common alpha values. Therefore, the normality assumption for this model is satisfied.
+- Based on anova table:
+  - Comparing model2 (quadratic) to model3 (cubic):
+    - The p-value is 0.0075 (< 0.05), indicating that adding the cubic term significantly improves the model
+    - The RSS decreases substantially from 100.1 to 45.1
+  - Comparing model3 (cubic) to model4 (quartic):
+    - The p-value is 0.1675 (> 0.05), indicating that adding the quartic term does not significantly improve the model
+    - The RSS only decreases slightly from 45.1 to 35.0
+  - Therefore, Cubic model is the best choice according to he anova table.
+- The p-value of the SW test for this model(Cubic Model) is 0.9, which is greater than most of the common alpha values. Therefore, the normality assumption for this model is satisfied.
+- There's no influential points based on the threshold of $\frac{4}{n}$.
 
 ***
 
@@ -391,11 +404,19 @@ summary(model_linear)
 **(b)** Plot a scatterplot of price versus carat and add the line for the fitted model in part **(a)**. Using a fitted versus residuals plot and/or a Q-Q plot, comment on the diagnostics. 
 
 ```{r}
+plot(diamonds$carat, diamonds$price,
+     pch = 20,
+     xlab = "Carat",
+     ylab = "Price",
+     main = "Price vs Carat with Linear Fit")
+
+abline(model_linear, col = "darkorange", lwd = 2, lty = 2)
 par(mfrow=c(1,2))
 plot(model_linear, which=1)
 plot(model_linear, which=2)
 ```
 
+- For linearity: According to the scattered plot, we can see that the relationship is something other than linear, as the regression doesn't fit so well.
 - For equal variance assumption: The distribution of the residuals seem to have a relationship with fitted value, therefore the variance of the distribution of the noise may not be equal.
 - For normality assumption: Flat tails are observed within the Normal Q-Q plot, suggesting that the noise may not follow a normal distribution.
 
@@ -419,6 +440,7 @@ plot(model_log_y, which=1)
 plot(model_log_y, which=2)
 ```
 
+- For linearity: According to the scattered plot, we can see that the relationship is something other than linear, as the regression doesn't fit so well.
 - For equal variance assumption: The distribution of the residuals seem to have a relationship with fitted value, therefore the variance of the distribution of the noise may not be equal.
 - For normality assumption: Flat tail is observed within the Normal Q-Q plot, suggesting that the noise may not follow a normal distribution.
 
@@ -440,6 +462,7 @@ plot(model_log_both, which=1)
 plot(model_log_both, which=2)
 ```
 
+- For linearity: According to the scattered plot, we can see that the relationship is indeed linear, as the regression fits well.
 - For equal variance assumption: The distribution of the residuals seem to have a relationship with fitted value, therefore the variance of the distribution of the noise may not be equal.
 - For normality assumption: Flat tail is observed within the Normal Q-Q plot, suggesting that the noise may not follow a normal distribution.
 
